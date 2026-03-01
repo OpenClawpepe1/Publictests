@@ -512,8 +512,375 @@ function DiceRoller() {
 }
 
 // ═══════════════════════════════════════════════════════
-// SESSION ENTRY
+// HP TRACKER (live combat HP management)
 // ═══════════════════════════════════════════════════════
+
+function HPTracker({characters,onSaveChar}) {
+  const pcs=characters.filter(c=>!c.isDM);
+  const [tempHp,setTempHp]=useState({});
+  const [deathSaves,setDeathSaves]=useState({});
+
+  const adjustHp=(char,delta)=>{
+    let newHp=Math.max(0,Math.min((char.hp||0)+delta,char.maxHp||1));
+    onSaveChar({...char,hp:newHp});
+  };
+  const setHpDirect=(char,val)=>{
+    const v=Math.max(0,Math.min(parseInt(val)||0,char.maxHp||1));
+    onSaveChar({...char,hp:v});
+  };
+  const toggleDeathSave=(charId,type,idx)=>{
+    setDeathSaves(p=>{const k=charId;const cur=p[k]||{succ:[false,false,false],fail:[false,false,false]};const arr=[...cur[type]];arr[idx]=!arr[idx];return{...p,[k]:{...cur,[type]:arr}};});
+  };
+  const resetDs=(charId)=>setDeathSaves(p=>({...p,[charId]:{succ:[false,false,false],fail:[false,false,false]}}));
+
+  if(!pcs.length) return <EmptyState icon="♥" title="Nessun PG" sub='Aggiungi personaggi in "Party"'/>;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+      {pcs.map(char=>{
+        const accent=CLASS_COLORS[char.class]||T.gold;
+        const hp=char.hp||0;const maxHp=char.maxHp||1;
+        const pct=Math.round((hp/maxHp)*100);
+        const barColor=pct>50?T.greenBright:pct>25?"#e8a33a":T.redBright;
+        const isDying=hp===0;
+        const ds=deathSaves[char.id]||{succ:[false,false,false],fail:[false,false,false]};
+        const th=tempHp[char.id]||0;
+
+        return (
+          <Card key={char.id} style={{borderLeft:`3px solid ${accent}`}}>
+            <div style={{padding:"14px 16px"}}>
+              {/* Name + HP display */}
+              <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"10px"}}>
+                <AvatarDisplay char={char} size={40}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"15px",color:isDying?T.redBright:T.textBright}}>{char.name}</div>
+                  <div style={{fontSize:"12px",color:T.textDim}}>{char.class} Lv.{char.level}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontFamily:"'Cinzel',serif",fontWeight:900,fontSize:"22px",color:isDying?T.redBright:T.textBright,lineHeight:1}}>{hp}<span style={{fontSize:"14px",color:T.textDim}}>/{maxHp}</span></div>
+                  {th>0&&<div style={{fontSize:"11px",color:T.blueBright,fontWeight:600}}>+{th} temp</div>}
+                </div>
+              </div>
+
+              {/* HP Bar */}
+              <div style={{height:"10px",background:T.bg,borderRadius:"5px",overflow:"hidden",marginBottom:"10px",border:`1px solid ${T.border}`}}>
+                <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${barColor},${barColor}cc)`,borderRadius:"4px",transition:"width .4s ease, background .4s"}}/>
+              </div>
+
+              {/* +/- Controls */}
+              <div style={{display:"flex",gap:"6px",alignItems:"center",justifyContent:"center",marginBottom:isDying?"10px":"0"}}>
+                {[-10,-5,-1].map(d=>(
+                  <button key={d} onClick={()=>adjustHp(char,d)} style={{background:`${T.redBright}15`,border:`1px solid ${T.redBright}33`,borderRadius:"10px",padding:"8px 12px",color:T.redBright,fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",cursor:"pointer",minWidth:"44px",minHeight:"44px",touchAction:"manipulation"}}>{d}</button>
+                ))}
+                <input value={hp} onChange={e=>setHpDirect(char,e.target.value)} style={{...iS,width:"60px",textAlign:"center",padding:"8px",fontSize:"16px",fontWeight:700,fontFamily:"'Cinzel',serif"}}/>
+                {[1,5,10].map(d=>(
+                  <button key={d} onClick={()=>adjustHp(char,d)} style={{background:`${T.greenBright}15`,border:`1px solid ${T.greenBright}33`,borderRadius:"10px",padding:"8px 12px",color:T.greenBright,fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",cursor:"pointer",minWidth:"44px",minHeight:"44px",touchAction:"manipulation"}}>+{d}</button>
+                ))}
+              </div>
+
+              {/* Temp HP */}
+              <div style={{display:"flex",alignItems:"center",gap:"8px",justifyContent:"center",marginTop:"8px"}}>
+                <span style={{fontSize:"12px",color:T.textDim}}>HP Temp:</span>
+                <button onClick={()=>setTempHp(p=>({...p,[char.id]:Math.max(0,(p[char.id]||0)-1)}))} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:"8px",padding:"4px 10px",color:T.textDim,cursor:"pointer",minHeight:"32px",touchAction:"manipulation"}}>−</button>
+                <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.blueBright,fontSize:"16px",minWidth:"24px",textAlign:"center"}}>{th}</span>
+                <button onClick={()=>setTempHp(p=>({...p,[char.id]:(p[char.id]||0)+1}))} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:"8px",padding:"4px 10px",color:T.blueBright,cursor:"pointer",minHeight:"32px",touchAction:"manipulation"}}>+</button>
+              </div>
+
+              {/* Death Saves (when HP = 0) */}
+              {isDying&&(
+                <div className="fi" style={{marginTop:"10px",padding:"12px",background:`${T.red}08`,borderRadius:"10px",border:`1px solid ${T.red}22`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+                    <span style={{fontFamily:"'Cinzel',serif",color:T.redBright,fontSize:"13px",fontWeight:700}}>💀 Tiri Salvezza Morte</span>
+                    <button onClick={()=>resetDs(char.id)} style={{fontSize:"11px",color:T.textDim,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",touchAction:"manipulation"}}>Reset</button>
+                  </div>
+                  <div style={{display:"flex",gap:"16px",justifyContent:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+                      <span style={{fontSize:"12px",color:T.greenBright,fontWeight:600}}>✓</span>
+                      {ds.succ.map((v,i)=><button key={i} onClick={()=>toggleDeathSave(char.id,"succ",i)} style={{width:"28px",height:"28px",borderRadius:"50%",border:`2px solid ${v?T.greenBright:T.border}`,background:v?T.greenBright:"transparent",cursor:"pointer",touchAction:"manipulation"}}/>)}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
+                      <span style={{fontSize:"12px",color:T.redBright,fontWeight:600}}>✗</span>
+                      {ds.fail.map((v,i)=><button key={i} onClick={()=>toggleDeathSave(char.id,"fail",i)} style={{width:"28px",height:"28px",borderRadius:"50%",border:`2px solid ${v?T.redBright:T.border}`,background:v?T.redBright:"transparent",cursor:"pointer",touchAction:"manipulation"}}/>)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// SPELL SLOT TRACKER
+// ═══════════════════════════════════════════════════════
+
+const SPELL_SLOTS_BY_LEVEL = {
+  1:[2,0,0,0,0],2:[3,0,0,0,0],3:[4,2,0,0,0],4:[4,3,0,0,0],5:[4,3,2,0,0],
+  6:[4,3,3,0,0],7:[4,3,3,1,0],8:[4,3,3,2,0],9:[4,3,3,3,1],10:[4,3,3,3,2],
+  11:[4,3,3,3,2],12:[4,3,3,3,2],13:[4,3,3,3,2],14:[4,3,3,3,2],15:[4,3,3,3,2],
+  16:[4,3,3,3,3],17:[4,3,3,3,3],18:[4,3,3,3,3],19:[4,3,3,3,3],20:[4,3,3,3,3],
+};
+
+function SpellSlotTracker({characters,onSaveChar}) {
+  const casters=characters.filter(c=>!c.isDM&&["Paladino","Chierico","Mago","Bardo","Druido","Stregone","Warlock","Ranger"].includes(c.class));
+
+  if(!casters.length) return <EmptyState icon="✨" title="Nessun caster" sub="Aggiungi un personaggio con incantesimi"/>;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:"14px"}}>
+      {casters.map(char=>{
+        const accent=CLASS_COLORS[char.class]||T.gold;
+        const lvl=char.level||1;
+        // Half-casters (Paladin, Ranger) get slots at level 2, use half-caster table
+        const isHalf=["Paladino","Ranger"].includes(char.class);
+        const effLvl=isHalf?Math.max(1,Math.ceil(lvl/2)):lvl;
+        const maxSlots=SPELL_SLOTS_BY_LEVEL[Math.min(effLvl,20)]||[0,0,0,0,0];
+        const usedSlots=char.usedSlots||[0,0,0,0,0];
+
+        const toggleSlot=(slotLvl,idx)=>{
+          const used=[...(char.usedSlots||[0,0,0,0,0])];
+          // If clicking on a used slot, un-use it; otherwise use next available
+          if(idx<used[slotLvl]){used[slotLvl]=idx;}
+          else{used[slotLvl]=idx+1;}
+          onSaveChar({...char,usedSlots:used});
+        };
+        const resetAll=()=>onSaveChar({...char,usedSlots:[0,0,0,0,0]});
+
+        return (
+          <Card key={char.id} style={{borderLeft:`3px solid ${accent}`}}>
+            <div style={{padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                  <AvatarDisplay char={char} size={36}/>
+                  <div>
+                    <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"15px",color:T.textBright}}>{char.name}</div>
+                    <div style={{fontSize:"12px",color:accent}}>{char.class} Lv.{lvl}{isHalf?" (half-caster)":""}</div>
+                  </div>
+                </div>
+                <button onClick={resetAll} style={{...bS,padding:"6px 12px",fontSize:"11px",color:T.blueBright,borderColor:`${T.blueBright}44`}}>🌙 Riposo</button>
+              </div>
+
+              <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+                {maxSlots.map((max,slotLvl)=>{
+                  if(max===0) return null;
+                  const used=usedSlots[slotLvl]||0;
+                  return (
+                    <div key={slotLvl} style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                      <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"13px",color:T.goldDim,minWidth:"56px"}}>Lv. {slotLvl+1}</span>
+                      <div style={{display:"flex",gap:"6px",flex:1}}>
+                        {Array.from({length:max}).map((_,i)=>{
+                          const isUsed=i<used;
+                          return (
+                            <button key={i} onClick={()=>toggleSlot(slotLvl,i)} style={{
+                              width:"36px",height:"36px",borderRadius:"10px",
+                              background:isUsed?`${T.textDim}22`:`linear-gradient(135deg,${accent}44,${accent}22)`,
+                              border:`2px solid ${isUsed?T.border:accent}`,
+                              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+                              touchAction:"manipulation",transition:"all .15s",
+                            }}>
+                              {isUsed?<span style={{color:T.textDim,fontSize:"16px"}}>✗</span>:<span style={{color:accent,fontSize:"16px"}}>◆</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <span style={{fontSize:"12px",color:T.textDim,minWidth:"32px",textAlign:"right"}}>{max-used}/{max}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// CONDITION CALCULATOR (2024 rules)
+// ═══════════════════════════════════════════════════════
+
+const CONDITIONS_DATA = [
+  {id:"blinded",name:"Accecato",icon:"🔲",effects:["Fallisce automaticamente prove basate sulla vista","Tiri per colpire hanno svantaggio","Tiri per colpire contro hanno vantaggio"]},
+  {id:"charmed",name:"Affascinato",icon:"💖",effects:["Non può attaccare chi l'ha affascinato","Chi l'ha affascinato ha vantaggio nelle prove sociali"]},
+  {id:"deafened",name:"Assordato",icon:"🔇",effects:["Fallisce automaticamente prove basate sull'udito"]},
+  {id:"frightened",name:"Spaventato",icon:"😱",effects:["Svantaggio a tiri abilità e attacco finché vede la fonte della paura","Non può avvicinarsi volontariamente alla fonte"]},
+  {id:"grappled",name:"Afferrato",icon:"🤝",effects:["Velocità diventa 0","Termina se chi afferra è incapacitato","Termina se un effetto rimuove la creatura dalla portata"]},
+  {id:"incapacitated",name:"Incapacitato",icon:"💫",effects:["Non può compiere azioni o reazioni"]},
+  {id:"invisible",name:"Invisibile",icon:"👻",effects:["Impossibile da vedere senza magia/sensi speciali","Vantaggio ai tiri per colpire","Tiri per colpire contro hanno svantaggio"]},
+  {id:"paralyzed",name:"Paralizzato",icon:"⚡",effects:["È incapacitato, non può muoversi o parlare","Fallisce automaticamente TS su FOR e DES","Tiri per colpire contro hanno vantaggio","Colpi entro 1.5m sono critici automatici"]},
+  {id:"petrified",name:"Pietrificato",icon:"🗿",effects:["Trasformato in sostanza solida inanimata","Peso × 10, non invecchia","È incapacitato, non può muoversi o parlare","Tiri per colpire contro hanno vantaggio","Fallisce automaticamente TS su FOR e DES","Resistenza a tutti i danni","Immune a veleno e malattia"]},
+  {id:"poisoned",name:"Avvelenato",icon:"☠️",effects:["Svantaggio ai tiri per colpire e prove di abilità"]},
+  {id:"prone",name:"Prono",icon:"🔻",effects:["Può solo strisciare (costo doppio)","Svantaggio ai tiri per colpire","Attacchi entro 1.5m hanno vantaggio","Attacchi oltre 1.5m hanno svantaggio","Alzarsi costa metà del movimento"]},
+  {id:"restrained",name:"Trattenuto",icon:"⛓️",effects:["Velocità diventa 0","Tiri per colpire hanno svantaggio","Tiri per colpire contro hanno vantaggio","Svantaggio ai TS su DES"]},
+  {id:"stunned",name:"Stordito",icon:"💥",effects:["È incapacitato, non può muoversi, parla a fatica","Fallisce automaticamente TS su FOR e DES","Tiri per colpire contro hanno vantaggio"]},
+  {id:"unconscious",name:"Privo di sensi",icon:"💤",effects:["È incapacitato, non può muoversi o parlare, ignaro","Cade prono","Fallisce automaticamente TS su FOR e DES","Tiri per colpire contro hanno vantaggio","Colpi entro 1.5m sono critici automatici"]},
+  {id:"exhaustion",name:"Sfinimento",icon:"🔥",effects:["Lv.1: Svantaggio alle prove di abilità","Lv.2: Velocità dimezzata","Lv.3: Svantaggio a tiri attacco e TS","Lv.4: HP massimi dimezzati","Lv.5: Velocità diventa 0","Lv.6: Morte"]},
+];
+
+function ConditionCalc() {
+  const [active,setActive]=useState([]);
+  const toggle=(id)=>setActive(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+
+  const allEffects=active.flatMap(id=>{const c=CONDITIONS_DATA.find(x=>x.id===id);return c?c.effects.map(e=>({cond:c.name,icon:c.icon,text:e})):[];});
+  // Deduplicate similar effects
+  const seen=new Set();const unique=allEffects.filter(e=>{const k=e.text;if(seen.has(k))return false;seen.add(k);return true;});
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:"6px",marginBottom:"16px"}}>
+        {CONDITIONS_DATA.map(c=>{
+          const isActive=active.includes(c.id);
+          return (
+            <button key={c.id} onClick={()=>toggle(c.id)} style={{
+              background:isActive?`${T.redBright}15`:T.bg,
+              border:`1px solid ${isActive?T.redBright:T.border}`,borderRadius:"10px",
+              padding:"10px 8px",cursor:"pointer",textAlign:"center",
+              touchAction:"manipulation",minHeight:"44px",transition:"all .15s",
+            }}>
+              <div style={{fontSize:"18px",marginBottom:"2px"}}>{c.icon}</div>
+              <div style={{fontSize:"11px",color:isActive?T.redBright:T.textDim,fontWeight:isActive?700:400}}>{c.name}</div>
+            </button>
+          );
+        })}
+      </div>
+      {active.length>0?(
+        <Card style={{padding:"16px"}}>
+          <div style={{fontFamily:"'Cinzel',serif",color:T.gold,fontSize:"14px",fontWeight:700,marginBottom:"12px"}}>Effetti combinati ({active.length} condizion{active.length===1?"e":"i"})</div>
+          {unique.map((e,i)=>(
+            <div key={i} style={{display:"flex",gap:"10px",alignItems:"flex-start",padding:"6px 0",borderBottom:i<unique.length-1?`1px solid ${T.border}15`:"none"}}>
+              <span style={{fontSize:"14px",flexShrink:0}}>{e.icon}</span>
+              <span style={{fontSize:"14px",color:T.text,lineHeight:1.5}}>{e.text}</span>
+            </div>
+          ))}
+        </Card>
+      ):(
+        <div style={{textAlign:"center",padding:"20px",color:T.textDim,fontSize:"13px",fontStyle:"italic"}}>Seleziona le condizioni attive per vedere gli effetti</div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// PARTY INVENTORY
+// ═══════════════════════════════════════════════════════
+
+function Inventory({settings,characters,onUpdateSettings}) {
+  const [showAdd,setShowAdd]=useState(false);
+  const [form,setForm]=useState({name:"",qty:1,type:"misc",assignedTo:"",notes:""});
+  const inventory=settings.inventory||[];
+  const gold=settings.gold||{pp:0,gp:0,ep:0,sp:0,cp:0};
+
+  const updateGold=(k,v)=>{const g={...gold,[k]:parseInt(v)||0};onUpdateSettings({gold:g});};
+  const addItem=()=>{
+    if(!form.name)return;
+    const items=[...inventory,{...form,id:`inv-${Date.now()}`}];
+    onUpdateSettings({inventory:items});setForm({name:"",qty:1,type:"misc",assignedTo:"",notes:""});setShowAdd(false);
+  };
+  const removeItem=(id)=>{
+    if(!confirm("Rimuovere?"))return;
+    onUpdateSettings({inventory:inventory.filter(x=>x.id!==id)});
+  };
+  const adjustQty=(id,delta)=>{
+    const items=inventory.map(x=>x.id===id?{...x,qty:Math.max(0,x.qty+delta)}:x).filter(x=>x.qty>0);
+    onUpdateSettings({inventory:items});
+  };
+
+  const typeIcons={weapon:"⚔️",armor:"🛡️",potion:"🧪",scroll:"📜",magic:"✨",food:"🍖",tool:"🔧",gem:"💎",misc:"📦"};
+  const types=Object.keys(typeIcons);
+  const pcs=characters.filter(c=>!c.isDM);
+
+  // Group by type
+  const grouped={};inventory.forEach(item=>{const t=item.type||"misc";if(!grouped[t])grouped[t]=[];grouped[t].push(item);});
+
+  // Total gold value in GP
+  const totalGp=(gold.pp||0)*10+(gold.gp||0)+(gold.ep||0)*0.5+(gold.sp||0)*0.1+(gold.cp||0)*0.01;
+
+  return (
+    <div>
+      {/* Gold tracker */}
+      <Card style={{padding:"16px",marginBottom:"16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"16px"}}>💰 Tesoro del Party</span>
+          <span style={{fontSize:"13px",color:T.goldDim,fontWeight:600}}>≈ {totalGp.toFixed(1)} GP</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"8px"}}>
+          {[["PP","pp","#c0c0c0"],["GP","gp","#e8c85a"],["EP","ep","#a8c0d0"],["SP","sp","#b0b0b0"],["CP","cp","#c08040"]].map(([label,key,color])=>(
+            <div key={key} style={{textAlign:"center"}}>
+              <div style={{fontSize:"11px",color,fontWeight:700,marginBottom:"4px"}}>{label}</div>
+              <input type="number" value={gold[key]||0} onChange={e=>updateGold(key,e.target.value)} style={{...iS,textAlign:"center",padding:"8px 4px",fontSize:"15px",fontWeight:700,fontFamily:"'Cinzel',serif"}}/>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Items */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.text,fontSize:"15px"}}>Oggetti ({inventory.length})</span>
+        <button onClick={()=>setShowAdd(!showAdd)} style={{...bP,padding:"8px 16px",fontSize:"13px"}}><I.Plus /> Aggiungi</button>
+      </div>
+
+      {/* Add item form */}
+      {showAdd&&(
+        <Card className="fs" style={{padding:"16px",marginBottom:"14px"}}>
+          <FormField label="Nome oggetto" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="es. Pozione di cura"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 80px",gap:"10px"}}>
+            <div>
+              <div style={{fontSize:"12px",color:T.textDim,marginBottom:"6px",fontWeight:600}}>Tipo</div>
+              <div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>
+                {types.map(t=>(
+                  <button key={t} onClick={()=>setForm(p=>({...p,type:t}))} style={{
+                    background:form.type===t?`${T.gold}15`:T.bg,border:`1px solid ${form.type===t?T.goldDim:T.border}`,
+                    borderRadius:"8px",padding:"6px 8px",cursor:"pointer",fontSize:"14px",touchAction:"manipulation",minHeight:"36px",
+                  }}>{typeIcons[t]}</button>
+                ))}
+              </div>
+            </div>
+            <FormField label="Qtà" value={form.qty} type="number" onChange={v=>setForm(p=>({...p,qty:parseInt(v)||1}))}/>
+          </div>
+          <div style={{marginBottom:"14px"}}>
+            <div style={{fontSize:"12px",color:T.textDim,marginBottom:"6px",fontWeight:600}}>Assegna a</div>
+            <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+              <button onClick={()=>setForm(p=>({...p,assignedTo:""}))} style={{background:!form.assignedTo?`${T.gold}15`:T.bg,border:`1px solid ${!form.assignedTo?T.goldDim:T.border}`,borderRadius:"8px",padding:"6px 12px",fontSize:"12px",color:T.text,cursor:"pointer",touchAction:"manipulation",minHeight:"36px"}}>Party</button>
+              {pcs.map(c=><button key={c.id} onClick={()=>setForm(p=>({...p,assignedTo:c.name}))} style={{background:form.assignedTo===c.name?`${T.gold}15`:T.bg,border:`1px solid ${form.assignedTo===c.name?T.goldDim:T.border}`,borderRadius:"8px",padding:"6px 12px",fontSize:"12px",color:T.text,cursor:"pointer",touchAction:"manipulation",minHeight:"36px"}}>{c.name}</button>)}
+            </div>
+          </div>
+          <FormField label="Note" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="opzionale"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginTop:"6px"}}>
+            <button onClick={()=>setShowAdd(false)} style={bS}>Annulla</button>
+            <button onClick={addItem} disabled={!form.name} style={{...bP,opacity:!form.name?.5:1}}><I.Plus /> Aggiungi</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Item list */}
+      {inventory.length===0&&!showAdd&&<div style={{textAlign:"center",padding:"20px",color:T.textDim,fontSize:"13px",fontStyle:"italic"}}>Inventario vuoto</div>}
+      {Object.entries(grouped).map(([type,items])=>(
+        <div key={type} style={{marginBottom:"12px"}}>
+          <div style={{fontSize:"12px",color:T.textDim,fontWeight:600,marginBottom:"6px",textTransform:"uppercase",letterSpacing:"1px"}}>{typeIcons[type]} {type}</div>
+          {items.map(item=>(
+            <div key={item.id} className="hov" style={{display:"flex",alignItems:"center",gap:"10px",padding:"10px 14px",background:T.card,border:`1px solid ${T.border}`,borderRadius:"10px",marginBottom:"4px",transition:"background .15s"}}>
+              <span style={{fontSize:"18px"}}>{typeIcons[item.type||"misc"]}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:"14px",color:T.textBright,fontWeight:600}}>{item.name}{item.qty>1&&<span style={{color:T.goldDim,fontWeight:400}}> ×{item.qty}</span>}</div>
+                {item.assignedTo&&<div style={{fontSize:"11px",color:T.blueBright}}>→ {item.assignedTo}</div>}
+                {item.notes&&<div style={{fontSize:"11px",color:T.textDim,fontStyle:"italic"}}>{item.notes}</div>}
+              </div>
+              <div style={{display:"flex",gap:"4px",flexShrink:0}}>
+                <button onClick={()=>adjustQty(item.id,-1)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:"8px",padding:"4px 8px",color:T.textDim,cursor:"pointer",minHeight:"32px",touchAction:"manipulation"}}>−</button>
+                <button onClick={()=>adjustQty(item.id,1)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:"8px",padding:"4px 8px",color:T.textDim,cursor:"pointer",minHeight:"32px",touchAction:"manipulation"}}>+</button>
+                <IconBtn icon={<I.Trash s={14}/>} onClick={()=>removeItem(item.id)} danger/>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function SessionEntry({session,onDelete}) {
   return (
@@ -578,6 +945,43 @@ function SetupGuide() {
 }
 
 // ═══════════════════════════════════════════════════════
+// COMBAT TAB (with sub-navigation)
+// ═══════════════════════════════════════════════════════
+
+function CombatTab({characters,onSaveChar}) {
+  const [sub,setSub]=useState("hp");
+  const subs=[
+    {id:"hp",label:"HP",icon:"♥"},
+    {id:"init",label:"Iniziativa",icon:"⚡"},
+    {id:"spells",label:"Slot",icon:"✨"},
+    {id:"cond",label:"Condizioni",icon:"💀"},
+    {id:"dice",label:"Dadi",icon:"🎲"},
+  ];
+  return (
+    <div>
+      {/* Sub-tab navigation */}
+      <div style={{display:"flex",gap:"4px",marginBottom:"20px",overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:"4px"}}>
+        {subs.map(s=>(
+          <button key={s.id} onClick={()=>setSub(s.id)} style={{
+            display:"flex",alignItems:"center",gap:"6px",padding:"10px 16px",
+            background:sub===s.id?`${T.gold}15`:"transparent",
+            border:`1px solid ${sub===s.id?T.goldDim:T.border}`,borderRadius:"100px",
+            color:sub===s.id?T.gold:T.textDim,fontSize:"13px",fontFamily:"'Cinzel',serif",fontWeight:sub===s.id?700:500,
+            cursor:"pointer",whiteSpace:"nowrap",touchAction:"manipulation",minHeight:"42px",
+            transition:"all .15s",
+          }}>{s.icon} {s.label}</button>
+        ))}
+      </div>
+      {sub==="hp"&&<HPTracker characters={characters} onSaveChar={onSaveChar}/>}
+      {sub==="init"&&<InitiativeTracker characters={characters}/>}
+      {sub==="spells"&&<SpellSlotTracker characters={characters} onSaveChar={onSaveChar}/>}
+      {sub==="cond"&&<ConditionCalc/>}
+      {sub==="dice"&&<DiceRoller/>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // PASSWORD GATE
 // ═══════════════════════════════════════════════════════
 
@@ -637,6 +1041,7 @@ export default function App() {
   },[configured]);
 
   const handleSaveChar=async(char)=>{setSaving(true);try{await fbSaveCharacter(char);flash("Personaggio salvato!");}catch(e){flash("Errore: "+e.message,"error");}setSaving(false);setShowCharForm(false);setEditChar(null);};
+  const handleQuickSave=async(char)=>{try{await fbSaveCharacter(char);}catch(e){console.error(e);}};
   const handleDeleteChar=async(id)=>{if(!confirm("Eliminare questo personaggio?"))return;try{await fbDeleteCharacter(id);flash("Eliminato");}catch(e){flash("Errore","error");}};
   const handleAvatarUpload=async(charId,file)=>{try{await uploadAvatar(charId,file);flash("Avatar aggiornato!");}catch(e){flash("Errore upload","error");}};
   const handleMoveParty=async(locId)=>{try{await updateSettings({partyLocation:locId});flash("Party spostato!");}catch(e){flash("Errore","error");}};
@@ -817,15 +1222,16 @@ export default function App() {
 
         {/* ═══ COMBAT ═══ */}
         {tab==="combat"&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,400px),1fr))",gap:"20px"}}>
-            <div><SectionTitle>Iniziativa</SectionTitle><InitiativeTracker characters={characters}/></div>
-            <div><SectionTitle>Dadi</SectionTitle><DiceRoller/></div>
-          </div>
+          <CombatTab characters={characters} onSaveChar={handleQuickSave}/>
         )}
 
         {/* ═══ TOOLS ═══ */}
         {tab==="tools"&&(
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,340px),1fr))",gap:"16px"}}>
+            <Card style={{padding:"24px",gridColumn:"1/-1"}}>
+              <h3 style={{fontFamily:"'Cinzel',serif",color:T.gold,fontSize:"18px",marginBottom:"16px"}}>🎒 Inventario del Party</h3>
+              <Inventory settings={settings} characters={characters} onUpdateSettings={async(data)=>{try{await updateSettings(data);flash("Inventario aggiornato");}catch(e){flash("Errore","error");}}}/>
+            </Card>
             <Card style={{padding:"24px"}}>
               <h3 style={{fontFamily:"'Cinzel',serif",color:T.gold,fontSize:"18px",marginBottom:"16px"}}>⚡ Campagna</h3>
               {[["Ambientazione","Forgotten Realms — Sword Coast"],["Anno","1358 DR — Anno delle Tempeste"],["Evento","Time of Troubles"],["Città base","Neverwinter"],["Regolamento","D&D 2024 + Oath 2014"]].map(([l,v])=>(
@@ -843,10 +1249,6 @@ export default function App() {
                 <RefItem title="Riposo" items={["Breve: 1h — Dadi Vita per HP","Lungo: 8h — Recupero completo"]}/>
                 <RefItem title="Copertura" items={["+2 CA (mezza)","+5 CA (tre quarti)","Immune (totale)"]}/>
               </div>
-            </Card>
-            <Card style={{padding:"24px",gridColumn:"1/-1"}}>
-              <h3 style={{fontFamily:"'Cinzel',serif",color:T.gold,fontSize:"18px",marginBottom:"16px"}}>🎲 Dadi</h3>
-              <DiceRoller/>
             </Card>
           </div>
         )}
