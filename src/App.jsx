@@ -4,7 +4,7 @@ import {
   saveCharacter as fbSaveCharacter, deleteCharacter as fbDeleteCharacter,
   saveSession as fbSaveSession, deleteSession as fbDeleteSession,
   updateSettings, uploadAvatar, uploadCharacterSheet, deleteFile,
-} from "./firebase";
+} from "./lib/firebase";
 
 import mapImg from "./map.jpg";
 
@@ -723,6 +723,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [viewingSheet, setViewingSheet] = useState(null);
 
   const configured = isFirebaseConfigured();
 
@@ -808,6 +809,7 @@ export default function App() {
   const tabs = [
     { id: "map", label: "Mappa", icon: <I.Map /> },
     { id: "party", label: "Party", icon: <I.Users /> },
+    { id: "sheets", label: "Schede", icon: <I.Shield /> },
     { id: "journal", label: "Diario", icon: <I.Book /> },
     { id: "combat", label: "Combattimento", icon: <I.Swords /> },
     { id: "tools", label: "Strumenti", icon: <I.Dice /> },
@@ -938,6 +940,179 @@ export default function App() {
             </div>
 
             {showCharForm && <CharacterForm char={editChar} onSave={handleSaveChar} onCancel={() => { setShowCharForm(false); setEditChar(null); }} saving={saving} />}
+          </div>
+        )}
+
+        {/* ═══ SHEETS TAB ═══ */}
+        {tab === "sheets" && (
+          <div>
+            {/* PDF Viewer Modal */}
+            {viewingSheet && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 1000, display: "flex", flexDirection: "column", padding: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexShrink: 0 }}>
+                  <div>
+                    <span style={{ fontFamily: "'Cinzel',serif", color: T.gold, fontSize: "18px", fontWeight: 700 }}>{viewingSheet.charName}</span>
+                    <span style={{ color: T.textDim, fontSize: "13px", marginLeft: "12px" }}>{viewingSheet.name}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <a href={viewingSheet.url} download style={{ ...bS, padding: "6px 14px", fontSize: "12px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px", color: T.text }}><I.Download /> Scarica</a>
+                    <button onClick={() => setViewingSheet(null)} style={{ ...bS, padding: "6px 14px", fontSize: "12px" }}><I.X /> Chiudi</button>
+                  </div>
+                </div>
+                <div style={{ flex: 1, borderRadius: "8px", overflow: "hidden", border: `1px solid ${T.border}` }}>
+                  {viewingSheet.name?.toLowerCase().endsWith(".pdf") ? (
+                    <iframe src={viewingSheet.url} style={{ width: "100%", height: "100%", border: "none", background: "#fff" }} title="Character Sheet" />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", background: T.bg }}>
+                      <img src={viewingSheet.url} alt={viewingSheet.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "10px" }}>
+              <div>
+                <h2 style={{ fontFamily: "'Cinzel',serif", color: T.gold, fontSize: "20px", margin: 0 }}>Schede Personaggio</h2>
+                <p style={{ fontSize: "13px", color: T.textDim, margin: "4px 0 0", fontStyle: "italic" }}>Carica le schede PDF e consultale al volo durante le sessioni</p>
+              </div>
+            </div>
+
+            {/* Character sheets grid */}
+            {characters.filter(c => !c.isDM).length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: T.textDim }}>
+                <div style={{ fontSize: "48px", marginBottom: "12px" }}>📜</div>
+                <div style={{ fontFamily: "'Cinzel',serif", fontSize: "16px", marginBottom: "6px" }}>Nessun personaggio nel party</div>
+                <div style={{ fontSize: "13px", fontStyle: "italic" }}>Aggiungi personaggi nel tab "Party" per caricare le loro schede</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {characters.filter(c => !c.isDM).map(char => {
+                  const accent = CLASS_COLORS[char.class] || T.gold;
+                  const sheets = char.sheets || [];
+                  const sheetUploadRef = `sheet-upload-${char.id}`;
+
+                  const handleSheetUpload = async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const allowed = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
+                    if (!allowed.includes(file.type)) { alert("Formati accettati: PDF, PNG, JPG"); return; }
+                    if (file.size > 10 * 1024 * 1024) { alert("Max 10MB per file"); return; }
+                    try {
+                      flash("Caricamento in corso...");
+                      const sheet = await uploadCharacterSheet(char.id, file);
+                      const updated = [...sheets, sheet];
+                      await fbSaveCharacter({ ...char, sheets: updated });
+                      flash("Scheda caricata!");
+                    } catch (err) {
+                      flash("Errore: " + err.message, "error");
+                    }
+                    e.target.value = "";
+                  };
+
+                  const handleSheetDelete = async (idx) => {
+                    if (!confirm("Eliminare questa scheda?")) return;
+                    const sheet = sheets[idx];
+                    try { if (sheet.path) await deleteFile(sheet.path); } catch (e) {}
+                    const updated = sheets.filter((_, i) => i !== idx);
+                    await fbSaveCharacter({ ...char, sheets: updated });
+                    flash("Scheda eliminata");
+                  };
+
+                  return (
+                    <div key={char.id} className="fi" style={{
+                      background: `linear-gradient(135deg,${T.surfaceLight},${T.surface})`,
+                      border: `1px solid ${T.border}`, borderTop: `3px solid ${accent}`,
+                      borderRadius: "10px", overflow: "hidden",
+                    }}>
+                      {/* Character header */}
+                      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "14px", borderBottom: `1px solid ${T.border}` }}>
+                        <AvatarDisplay char={char} size={48} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontFamily: "'Cinzel',serif", fontWeight: 900, fontSize: "18px", color: T.textBright }}>{char.name}</div>
+                          <div style={{ fontSize: "13px", color: accent, fontStyle: "italic" }}>{char.species} — {char.class} Lv.{char.level}</div>
+                          {char.player && <div style={{ fontSize: "11px", color: T.textDim, marginTop: "2px" }}>Giocatore: {char.player}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <span style={{ fontSize: "12px", color: T.textDim }}>{sheets.length} {sheets.length === 1 ? "scheda" : "schede"}</span>
+                          <label style={{ ...bP, padding: "8px 14px", fontSize: "12px", cursor: "pointer", margin: 0 }}>
+                            <I.Upload /> Carica
+                            <input type="file" accept=".pdf,image/*" onChange={handleSheetUpload} style={{ display: "none" }} />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Sheets list */}
+                      <div style={{ padding: "12px 20px" }}>
+                        {sheets.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "24px", color: T.textDim }}>
+                            <div style={{ fontSize: "28px", marginBottom: "8px", opacity: 0.5 }}>📄</div>
+                            <div style={{ fontSize: "13px", fontStyle: "italic" }}>Nessuna scheda caricata</div>
+                            <div style={{ fontSize: "11px", marginTop: "4px" }}>Clicca "Carica" per aggiungere un PDF o immagine</div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "10px" }}>
+                            {sheets.map((s, i) => {
+                              const isPdf = s.name?.toLowerCase().endsWith(".pdf");
+                              const isImg = /\.(png|jpg|jpeg|webp)$/i.test(s.name || "");
+
+                              return (
+                                <div key={i} style={{
+                                  background: T.bg, border: `1px solid ${T.border}`, borderRadius: "8px",
+                                  overflow: "hidden", transition: "border-color .2s",
+                                }}>
+                                  {/* Preview area */}
+                                  <div onClick={() => setViewingSheet({ ...s, charName: char.name })}
+                                    style={{
+                                      height: "160px", cursor: "pointer", position: "relative",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      background: isPdf ? "linear-gradient(135deg, #1a1a2e, #16213e)" : T.bg,
+                                      overflow: "hidden",
+                                    }}>
+                                    {isImg ? (
+                                      <img src={s.url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }} />
+                                    ) : isPdf ? (
+                                      <div style={{ textAlign: "center" }}>
+                                        <div style={{ fontSize: "40px", marginBottom: "8px" }}>📋</div>
+                                        <div style={{ fontSize: "11px", color: T.goldDim, fontFamily: "'Cinzel',serif" }}>PDF — Clicca per aprire</div>
+                                      </div>
+                                    ) : (
+                                      <div style={{ fontSize: "36px" }}>📄</div>
+                                    )}
+                                    <div style={{
+                                      position: "absolute", inset: 0,
+                                      background: "linear-gradient(transparent 60%, rgba(0,0,0,.6))",
+                                      opacity: 0, transition: "opacity .2s",
+                                    }}
+                                      onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                      onMouseLeave={e => e.currentTarget.style.opacity = 0}
+                                    >
+                                      <div style={{ position: "absolute", bottom: 10, left: 0, right: 0, textAlign: "center", color: "#fff", fontSize: "12px", fontFamily: "'Cinzel',serif", fontWeight: 600 }}>Clicca per visualizzare</div>
+                                    </div>
+                                  </div>
+
+                                  {/* File info bar */}
+                                  <div style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: "8px", borderTop: `1px solid ${T.border}` }}>
+                                    <span style={{ color: isPdf ? "#e74c3c" : T.blueBright, flexShrink: 0 }}>{isPdf ? "📕" : "🖼️"}</span>
+                                    <span style={{ flex: 1, fontSize: "12px", color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{s.name}</span>
+                                    <button onClick={() => setViewingSheet({ ...s, charName: char.name })} title="Visualizza"
+                                      style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: "4px", padding: "4px 6px", cursor: "pointer", color: T.blueBright }}><I.Eye /></button>
+                                    <a href={s.url} download title="Scarica"
+                                      style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: "4px", padding: "4px 6px", cursor: "pointer", color: T.greenBright, display: "inline-flex" }}><I.Download /></a>
+                                    <button onClick={() => handleSheetDelete(i)} title="Elimina"
+                                      style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: "4px", padding: "4px 6px", cursor: "pointer", color: T.red }}><I.Trash /></button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
