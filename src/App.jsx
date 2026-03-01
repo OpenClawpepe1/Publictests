@@ -127,6 +127,8 @@ const I = {
   Camera:({s=14})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
   Crown:({s=16})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 20h20"/><path d="M4 20l1.5-12L9 12l3-8 3 8 3.5-4L20 20"/></svg>,
   Zap:({s=20})=><svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  DM:({s=22})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><path d="M12 5v-2"/><path d="M12 21v-2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/></svg>,
+  Skull:({s=16})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="10" r="8"/><path d="M8 22v-4"/><path d="M16 22v-4"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M9 14h6"/></svg>,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -945,6 +947,332 @@ function SetupGuide() {
 }
 
 // ═══════════════════════════════════════════════════════
+// DM SCREEN — Vista panoramica party + reference
+// ═══════════════════════════════════════════════════════
+
+const DC_TABLE = [
+  {dc:5,diff:"Molto facile",desc:"Chiunque ci riesce"},
+  {dc:10,diff:"Facile",desc:"Lieve sfida"},
+  {dc:15,diff:"Media",desc:"Richiede competenza"},
+  {dc:20,diff:"Difficile",desc:"Richiede talento"},
+  {dc:25,diff:"Molto difficile",desc:"Solo i migliori"},
+  {dc:30,diff:"Quasi impossibile",desc:"Impresa leggendaria"},
+];
+
+const COVER_TABLE = [{type:"Mezza",ac:"+2 CA, +2 TS DES"},{type:"Tre quarti",ac:"+5 CA, +5 TS DES"},{type:"Totale",ac:"Non bersagliabile"}];
+
+const LIGHT_TABLE = [
+  {type:"Luce intensa",eff:"Visione normale"},
+  {type:"Luce fioca",eff:"Percezione con svantaggio (vista)"},
+  {type:"Oscurità",eff:"Accecato di fatto"},
+];
+
+function DMScreen({characters,settings,onUpdateSettings}) {
+  const pcs=characters.filter(c=>!c.isDM);
+  const [notes,setNotes]=useState(settings.dmNotes||"");
+  const [notesDirty,setNotesDirty]=useState(false);
+  const saveTimer=useRef(null);
+
+  const handleNotesChange=(v)=>{
+    setNotes(v);setNotesDirty(true);
+    clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(()=>{onUpdateSettings({dmNotes:v});setNotesDirty(false);},1500);
+  };
+
+  // Passives calc
+  const getPassive=(char,statIdx)=>{
+    const stat=char.stats?.[statIdx]??10;
+    const mod=Math.floor((stat-10)/2);
+    const prof=Math.ceil((char.level||1)/4)+1; // approx proficiency
+    return 10+mod+prof; // assumes proficiency (DM can adjust mentally)
+  };
+
+  return (
+    <div>
+      {/* ─── Party Overview Grid ─── */}
+      <Card style={{marginBottom:"14px",overflow:"visible"}}>
+        <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.border}`}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"15px",color:T.gold}}>👁️ Party a Colpo d'Occhio</span>
+        </div>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:"520px"}}>
+            <thead>
+              <tr style={{borderBottom:`1px solid ${T.border}`}}>
+                {["PG","HP","CA","Perc.P","Inv.P","Intu.P","CD Inc.","Vel."].map(h=>(
+                  <th key={h} style={{padding:"10px 8px",fontSize:"11px",color:T.textDim,fontWeight:700,textAlign:"center",letterSpacing:".5px",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pcs.map(char=>{
+                const accent=CLASS_COLORS[char.class]||T.gold;
+                const hp=char.hp||0;const maxHp=char.maxHp||1;
+                const pct=Math.round((hp/maxHp)*100);
+                const hpCol=pct>50?T.greenBright:pct>25?"#e8a33a":T.redBright;
+                const ppPerc=getPassive(char,4); // SAG
+                const ppInv=getPassive(char,3);   // INT
+                const ppIntu=getPassive(char,4);  // SAG (Intuizione)
+                const cha=char.stats?.[5]??10;
+                const spellDC=8+Math.ceil((char.level||1)/4)+1+Math.floor((cha-10)/2);
+                return (
+                  <tr key={char.id} style={{borderBottom:`1px solid ${T.border}15`}}>
+                    <td style={{padding:"10px 8px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                        <div style={{width:"6px",height:"24px",borderRadius:"3px",background:accent,flexShrink:0}}/>
+                        <div>
+                          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"13px",color:T.textBright,whiteSpace:"nowrap"}}>{char.name}</div>
+                          <div style={{fontSize:"11px",color:T.textDim}}>{char.class} {char.level}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{textAlign:"center",padding:"8px"}}>
+                      <div style={{display:"inline-flex",alignItems:"center",gap:"4px"}}>
+                        <div style={{width:"36px",height:"6px",borderRadius:"3px",background:T.bg,overflow:"hidden"}}>
+                          <div style={{width:`${pct}%`,height:"100%",background:hpCol,borderRadius:"3px"}}/>
+                        </div>
+                        <span style={{fontWeight:700,fontSize:"13px",color:hpCol,fontFamily:"'Cinzel',serif"}}>{hp}<span style={{color:T.textDim,fontWeight:400}}>/{maxHp}</span></span>
+                      </div>
+                    </td>
+                    <td style={{textAlign:"center",fontFamily:"'Cinzel',serif",fontWeight:900,fontSize:"16px",color:T.blueBright}}>{char.ac}</td>
+                    <td style={{textAlign:"center",fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",color:T.text}}>{ppPerc}</td>
+                    <td style={{textAlign:"center",fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",color:T.text}}>{ppInv}</td>
+                    <td style={{textAlign:"center",fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",color:T.text}}>{ppIntu}</td>
+                    <td style={{textAlign:"center",fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",color:T.gold}}>{["Paladino","Chierico","Mago","Bardo","Druido","Stregone","Warlock","Ranger"].includes(char.class)?spellDC:"—"}</td>
+                    <td style={{textAlign:"center",fontSize:"13px",color:T.text}}>9m</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!pcs.length&&<div style={{padding:"20px",textAlign:"center",color:T.textDim,fontSize:"13px",fontStyle:"italic"}}>Nessun PG nel party</div>}
+      </Card>
+
+      {/* ─── Quick Ref Tables (2-col on desktop) ─── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,280px),1fr))",gap:"12px",marginBottom:"14px"}}>
+        {/* CD Prove */}
+        <Card style={{padding:"14px"}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"13px",marginBottom:"10px"}}>🎯 Difficoltà Prove (CD)</div>
+          {DC_TABLE.map(d=>(
+            <div key={d.dc} style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${T.border}10`}}>
+              <span style={{fontFamily:"'Cinzel',serif",fontWeight:900,fontSize:"16px",color:T.goldBright,minWidth:"32px"}}>{d.dc}</span>
+              <span style={{fontSize:"13px",color:T.textBright,fontWeight:600,minWidth:"100px"}}>{d.diff}</span>
+              <span style={{fontSize:"12px",color:T.textDim,fontStyle:"italic"}}>{d.desc}</span>
+            </div>
+          ))}
+        </Card>
+
+        {/* Copertura + Luce */}
+        <Card style={{padding:"14px"}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"13px",marginBottom:"10px"}}>🛡️ Copertura</div>
+          {COVER_TABLE.map(c=>(
+            <div key={c.type} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${T.border}10`}}>
+              <span style={{fontSize:"13px",color:T.textBright,fontWeight:600}}>{c.type}</span>
+              <span style={{fontSize:"13px",color:T.text}}>{c.ac}</span>
+            </div>
+          ))}
+          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"13px",marginTop:"14px",marginBottom:"10px"}}>💡 Illuminazione</div>
+          {LIGHT_TABLE.map(l=>(
+            <div key={l.type} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${T.border}10`}}>
+              <span style={{fontSize:"13px",color:T.textBright,fontWeight:600}}>{l.type}</span>
+              <span style={{fontSize:"12px",color:T.textDim}}>{l.eff}</span>
+            </div>
+          ))}
+          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"13px",marginTop:"14px",marginBottom:"10px"}}>💨 Caduta</div>
+          <div style={{fontSize:"13px",color:T.text}}>1d6 danni per 3m (max 20d6)</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"13px",marginTop:"14px",marginBottom:"10px"}}>🫁 Soffocamento</div>
+          <div style={{fontSize:"13px",color:T.text}}>1 + mod COS minuti trattenere, poi COS round, poi 0 HP</div>
+        </Card>
+      </div>
+
+      {/* ─── DM Scratchpad ─── */}
+      <Card style={{padding:"14px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}}>
+          <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.gold,fontSize:"13px"}}>📝 Appunti di Sessione</span>
+          <span style={{fontSize:"11px",color:notesDirty?T.goldDim:T.greenBright}}>{notesDirty?"Salvando...":"✓ Salvato"}</span>
+        </div>
+        <textarea
+          value={notes}
+          onChange={e=>handleNotesChange(e.target.value)}
+          placeholder="Note rapide, HP dei nemici, CD improvvisate, cose da ricordare..."
+          style={{...iS,minHeight:"120px",resize:"vertical",fontSize:"14px",lineHeight:1.6,fontFamily:"'Crimson Text',serif"}}
+        />
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// QUICK STAT BLOCK — Monster/NPC stat creator
+// ═══════════════════════════════════════════════════════
+
+const CR_PRESETS = [
+  {cr:"1/4",prof:2,hp:20,ac:12,atk:3,dmg:"1d6+1",dc:11},
+  {cr:"1/2",prof:2,hp:32,ac:13,atk:4,dmg:"1d8+2",dc:12},
+  {cr:"1",prof:2,hp:45,ac:13,atk:5,dmg:"1d10+3",dc:13},
+  {cr:"2",prof:2,hp:60,ac:14,atk:5,dmg:"2d6+3",dc:13},
+  {cr:"3",prof:2,hp:75,ac:15,atk:6,dmg:"2d8+3",dc:14},
+  {cr:"4",prof:2,hp:90,ac:15,atk:6,dmg:"2d8+4",dc:14},
+  {cr:"5",prof:3,hp:110,ac:16,atk:7,dmg:"2d10+4",dc:15},
+  {cr:"8",prof:3,hp:150,ac:17,atk:8,dmg:"3d8+5",dc:16},
+  {cr:"10",prof:4,hp:180,ac:18,atk:9,dmg:"3d10+5",dc:17},
+  {cr:"15",prof:5,hp:230,ac:19,atk:11,dmg:"4d8+6",dc:18},
+  {cr:"20",prof:6,hp:300,ac:20,atk:13,dmg:"4d10+7",dc:20},
+];
+
+function QuickStatBlock({settings,onUpdateSettings}) {
+  const [showForm,setShowForm]=useState(false);
+  const [form,setForm]=useState({name:"",cr:"1",hp:45,maxHp:45,ac:13,atk:"+5",dmg:"1d10+3",speed:"9m",dc:13,traits:"",actions:"",notes:""});
+  const monsters=settings.monsters||[];
+
+  const applyCR=(crStr)=>{
+    const preset=CR_PRESETS.find(p=>p.cr===crStr);
+    if(preset){
+      setForm(p=>({...p,cr:crStr,hp:preset.hp,maxHp:preset.hp,ac:preset.ac,atk:`+${preset.atk}`,dmg:preset.dmg,dc:preset.dc}));
+    }
+  };
+
+  const addMonster=()=>{
+    if(!form.name)return;
+    const m=[...monsters,{...form,id:`mon-${Date.now()}`,currentHp:form.hp}];
+    onUpdateSettings({monsters:m});
+    setForm({name:"",cr:"1",hp:45,maxHp:45,ac:13,atk:"+5",dmg:"1d10+3",speed:"9m",dc:13,traits:"",actions:"",notes:""});
+    setShowForm(false);
+  };
+
+  const removeMonster=(id)=>{onUpdateSettings({monsters:monsters.filter(m=>m.id!==id)});};
+
+  const adjustMonsterHp=(id,delta)=>{
+    const m=monsters.map(mon=>mon.id===id?{...mon,currentHp:Math.max(0,Math.min((mon.currentHp??mon.hp)+delta,mon.hp))}:mon);
+    onUpdateSettings({monsters:m});
+  };
+
+  const setMonsterHp=(id,val)=>{
+    const v=parseInt(val)||0;
+    const m=monsters.map(mon=>mon.id===id?{...mon,currentHp:Math.max(0,Math.min(v,mon.hp))}:mon);
+    onUpdateSettings({monsters:m});
+  };
+
+  const dupMonster=(mon)=>{
+    const copy={...mon,id:`mon-${Date.now()}`,name:`${mon.name} #${monsters.filter(m=>m.name.startsWith(mon.name.split(" #")[0])).length+1}`,currentHp:mon.hp};
+    onUpdateSettings({monsters:[...monsters,copy]});
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+        <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,color:T.text,fontSize:"15px"}}>Mostri attivi ({monsters.length})</span>
+        <button onClick={()=>setShowForm(!showForm)} style={{...bP,padding:"8px 16px",fontSize:"13px"}}><I.Plus /> Crea Mostro</button>
+      </div>
+
+      {/* ─── Creation Form ─── */}
+      {showForm&&(
+        <Card className="fs" style={{padding:"16px",marginBottom:"14px",borderTop:`2px solid ${T.redBright}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <h3 style={{fontFamily:"'Cinzel',serif",color:T.redBright,fontSize:"16px",margin:0}}>💀 Nuovo Mostro</h3>
+          </div>
+
+          <FormField label="Nome" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="es. Goblin Capitano"/>
+
+          {/* CR Presets */}
+          <div style={{marginBottom:"14px"}}>
+            <div style={{fontSize:"12px",color:T.textDim,marginBottom:"6px",fontWeight:600}}>Grado Sfida (pre-fill stats)</div>
+            <div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>
+              {CR_PRESETS.map(p=>(
+                <button key={p.cr} onClick={()=>applyCR(p.cr)} style={{
+                  background:form.cr===p.cr?`${T.redBright}20`:T.bg,
+                  border:`1px solid ${form.cr===p.cr?T.redBright:T.border}`,borderRadius:"8px",
+                  padding:"6px 10px",fontSize:"12px",color:form.cr===p.cr?T.redBright:T.textDim,
+                  fontFamily:"'Cinzel',serif",fontWeight:700,cursor:"pointer",touchAction:"manipulation",minHeight:"34px",
+                }}>GS {p.cr}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:"10px"}}>
+            <FormField label="HP" value={form.hp} type="number" onChange={v=>{const n=parseInt(v)||1;setForm(p=>({...p,hp:n,maxHp:n}));}}/>
+            <FormField label="CA" value={form.ac} type="number" onChange={v=>setForm(p=>({...p,ac:parseInt(v)||10}))}/>
+            <FormField label="Attacco" value={form.atk} onChange={v=>setForm(p=>({...p,atk:v}))} placeholder="+5"/>
+            <FormField label="Danno" value={form.dmg} onChange={v=>setForm(p=>({...p,dmg:v}))} placeholder="2d6+3"/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}}>
+            <FormField label="Velocità" value={form.speed} onChange={v=>setForm(p=>({...p,speed:v}))} placeholder="9m"/>
+            <FormField label="CD Abilità" value={form.dc} type="number" onChange={v=>setForm(p=>({...p,dc:parseInt(v)||10}))}/>
+          </div>
+          <FormField label="Tratti / Abilità speciali" value={form.traits} onChange={v=>setForm(p=>({...p,traits:v}))} multiline placeholder="es. Scurovisione 18m, Agguato (vantaggio se nascosto)"/>
+          <FormField label="Azioni" value={form.actions} onChange={v=>setForm(p=>({...p,actions:v}))} multiline placeholder="es. Multiattacco (2 fendenti). Fendente: +5, 1d8+3 taglienti"/>
+          <FormField label="Note DM" value={form.notes} onChange={v=>setForm(p=>({...p,notes:v}))} placeholder="Tattiche, comportamento, tesoro..."/>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginTop:"6px"}}>
+            <button onClick={()=>setShowForm(false)} style={bS}>Annulla</button>
+            <button onClick={addMonster} disabled={!form.name} style={{...bP,opacity:!form.name?.5:1,background:`linear-gradient(135deg,${T.red},${T.redBright})`}}><I.Skull /> Crea</button>
+          </div>
+        </Card>
+      )}
+
+      {/* ─── Active Monsters ─── */}
+      {monsters.length===0&&!showForm&&<div style={{textAlign:"center",padding:"24px",color:T.textDim,fontSize:"13px",fontStyle:"italic"}}>Nessun mostro — crea il primo per iniziare il combattimento</div>}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))",gap:"10px"}}>
+        {monsters.map(mon=>{
+          const hp=mon.currentHp??mon.hp;
+          const pct=Math.round((hp/mon.hp)*100);
+          const hpCol=pct>50?T.greenBright:pct>25?"#e8a33a":T.redBright;
+          const isDead=hp<=0;
+          return (
+            <Card key={mon.id} style={{borderTop:`3px solid ${isDead?T.textDim:T.redBright}`,opacity:isDead?.5:1,transition:"opacity .3s"}}>
+              <div style={{padding:"14px 16px"}}>
+                {/* Header */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"10px"}}>
+                  <div>
+                    <div style={{fontFamily:"'Cinzel',serif",fontWeight:900,fontSize:"16px",color:isDead?T.textDim:T.textBright,textDecoration:isDead?"line-through":"none"}}>{mon.name}</div>
+                    <div style={{fontSize:"12px",color:T.textDim}}>GS {mon.cr}</div>
+                  </div>
+                  <div style={{display:"flex",gap:"4px"}}>
+                    <button onClick={()=>dupMonster(mon)} title="Duplica" style={{background:"none",border:`1px solid ${T.border}`,borderRadius:"8px",padding:"6px 8px",cursor:"pointer",color:T.textDim,fontSize:"12px",touchAction:"manipulation",minHeight:"32px"}}>📋</button>
+                    <IconBtn icon={<I.Trash s={14}/>} onClick={()=>removeMonster(mon.id)} danger/>
+                  </div>
+                </div>
+
+                {/* Stats row */}
+                <div style={{display:"flex",gap:"8px",marginBottom:"10px",flexWrap:"wrap"}}>
+                  <span style={{background:`${T.blueBright}12`,border:`1px solid ${T.blueBright}25`,borderRadius:"8px",padding:"4px 10px",fontSize:"12px",color:T.blueBright,fontWeight:700}}>CA {mon.ac}</span>
+                  <span style={{background:`${T.redBright}12`,border:`1px solid ${T.redBright}25`,borderRadius:"8px",padding:"4px 10px",fontSize:"12px",color:T.redBright,fontWeight:700}}>Atk {mon.atk}</span>
+                  <span style={{background:`${T.gold}12`,border:`1px solid ${T.gold}25`,borderRadius:"8px",padding:"4px 10px",fontSize:"12px",color:T.gold,fontWeight:700}}>Dmg {mon.dmg}</span>
+                  {mon.dc&&<span style={{background:`${T.gold}08`,border:`1px solid ${T.border}`,borderRadius:"8px",padding:"4px 10px",fontSize:"12px",color:T.text}}>CD {mon.dc}</span>}
+                  {mon.speed&&<span style={{background:`${T.gold}08`,border:`1px solid ${T.border}`,borderRadius:"8px",padding:"4px 10px",fontSize:"12px",color:T.text}}>{mon.speed}</span>}
+                </div>
+
+                {/* HP Bar + controls */}
+                <div style={{marginBottom:"8px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                    <span style={{fontSize:"11px",color:T.textDim,fontWeight:600}}>HP</span>
+                    <span style={{fontFamily:"'Cinzel',serif",fontWeight:700,fontSize:"14px",color:hpCol}}>{hp}<span style={{color:T.textDim}}>/{mon.hp}</span></span>
+                  </div>
+                  <div style={{height:"8px",background:T.bg,borderRadius:"4px",overflow:"hidden",border:`1px solid ${T.border}`}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:hpCol,borderRadius:"3px",transition:"width .3s, background .3s"}}/>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:"4px",justifyContent:"center",alignItems:"center"}}>
+                  {[-10,-5,-1].map(d=><button key={d} onClick={()=>adjustMonsterHp(mon.id,d)} style={{background:`${T.redBright}10`,border:`1px solid ${T.redBright}22`,borderRadius:"8px",padding:"6px 10px",color:T.redBright,fontSize:"12px",fontWeight:700,cursor:"pointer",minHeight:"36px",touchAction:"manipulation"}}>{d}</button>)}
+                  <input value={hp} onChange={e=>setMonsterHp(mon.id,e.target.value)} style={{...iS,width:"50px",textAlign:"center",padding:"6px",fontSize:"14px",fontWeight:700,fontFamily:"'Cinzel',serif"}}/>
+                  {[1,5,10].map(d=><button key={d} onClick={()=>adjustMonsterHp(mon.id,d)} style={{background:`${T.greenBright}10`,border:`1px solid ${T.greenBright}22`,borderRadius:"8px",padding:"6px 10px",color:T.greenBright,fontSize:"12px",fontWeight:700,cursor:"pointer",minHeight:"36px",touchAction:"manipulation"}}>+{d}</button>)}
+                </div>
+
+                {/* Traits / Actions */}
+                {mon.traits&&<div style={{marginTop:"10px",padding:"8px 10px",background:T.bg,borderRadius:"8px",fontSize:"13px",color:T.text,lineHeight:1.5,whiteSpace:"pre-wrap",borderLeft:`3px solid ${T.gold}44`}}>{mon.traits}</div>}
+                {mon.actions&&<div style={{marginTop:"6px",padding:"8px 10px",background:T.bg,borderRadius:"8px",fontSize:"13px",color:T.text,lineHeight:1.5,whiteSpace:"pre-wrap",borderLeft:`3px solid ${T.redBright}44`}}>{mon.actions}</div>}
+                {mon.notes&&<div style={{marginTop:"6px",fontSize:"12px",color:T.textDim,fontStyle:"italic"}}>{mon.notes}</div>}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // COMBAT TAB (with sub-navigation)
 // ═══════════════════════════════════════════════════════
 
@@ -977,6 +1305,458 @@ function CombatTab({characters,onSaveChar}) {
       {sub==="spells"&&<SpellSlotTracker characters={characters} onSaveChar={onSaveChar}/>}
       {sub==="cond"&&<ConditionCalc/>}
       {sub==="dice"&&<DiceRoller/>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// AMBIENT SOUNDBOARD — Procedural audio engine
+// ═══════════════════════════════════════════════════════
+
+class AmbientEngine {
+  constructor() {
+    this.ctx = null;
+    this.master = null;
+    this.nodes = [];
+    this.volume = 0.5;
+    this.active = null;
+    this.fading = false;
+  }
+
+  init() {
+    if (this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = this.volume;
+    this.master.connect(this.ctx.destination);
+  }
+
+  setVolume(v) {
+    this.volume = v;
+    if (this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.1);
+  }
+
+  stop() {
+    this.nodes.forEach(n => { try { n.stop?.(); n.disconnect?.(); } catch(e){} });
+    this.nodes = [];
+    this.active = null;
+  }
+
+  // Noise buffer generator
+  makeNoise(seconds = 2) {
+    const len = this.ctx.sampleRate * seconds;
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  // Looping noise source
+  noiseLoop(filterType, freq, q = 1) {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.makeNoise(2);
+    src.loop = true;
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = filterType;
+    filt.frequency.value = freq;
+    filt.Q.value = q;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 1;
+    src.connect(filt);
+    filt.connect(gain);
+    gain.connect(this.master);
+    src.start();
+    this.nodes.push(src, filt, gain);
+    return { src, filt, gain };
+  }
+
+  // LFO for modulation
+  lfo(freq, min, max, param) {
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.frequency.value = freq;
+    osc.type = "sine";
+    g.gain.value = (max - min) / 2;
+    osc.connect(g);
+    g.connect(param);
+    param.value = (max + min) / 2;
+    osc.start();
+    this.nodes.push(osc, g);
+    return osc;
+  }
+
+  // Periodic random event (thunder, drip, creak)
+  randomEvent(fn, minMs, maxMs) {
+    const schedule = () => {
+      if (!this.active) return;
+      fn();
+      const next = minMs + Math.random() * (maxMs - minMs);
+      const timer = setTimeout(schedule, next);
+      this.nodes.push({ stop: () => clearTimeout(timer), disconnect: () => {} });
+    };
+    const init = setTimeout(schedule, minMs / 2);
+    this.nodes.push({ stop: () => clearTimeout(init), disconnect: () => {} });
+  }
+
+  // ─── MOOD GENERATORS ───
+
+  rain() {
+    // Steady rain: bandpass filtered noise
+    const r = this.noiseLoop("bandpass", 3000, 0.8);
+    r.gain.gain.value = 0.4;
+    // High shimmer
+    const h = this.noiseLoop("highpass", 6000, 0.5);
+    h.gain.gain.value = 0.08;
+    // Low body
+    const lo = this.noiseLoop("lowpass", 800, 0.3);
+    lo.gain.gain.value = 0.12;
+    // Subtle variation
+    this.lfo(0.15, 2500, 3500, r.filt.frequency);
+  }
+
+  wind() {
+    const w = this.noiseLoop("lowpass", 400, 2);
+    w.gain.gain.value = 0.3;
+    this.lfo(0.08, 200, 800, w.filt.frequency);
+    // Gusts
+    const g = this.noiseLoop("bandpass", 1200, 3);
+    g.gain.gain.value = 0.05;
+    this.lfo(0.04, 0.01, 0.15, g.gain.gain);
+  }
+
+  thunder() {
+    const burst = () => {
+      const dur = 1.5 + Math.random() * 2;
+      const buf = this.makeNoise(dur);
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 100 + Math.random() * 200;
+      const g = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.5 + Math.random() * 0.4, now + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      src.connect(lp);
+      lp.connect(g);
+      g.connect(this.master);
+      src.start();
+      src.stop(now + dur);
+    };
+    this.randomEvent(burst, 8000, 25000);
+  }
+
+  fire() {
+    // Crackling: filtered noise with random amplitude
+    const f = this.noiseLoop("bandpass", 2000, 2);
+    f.gain.gain.value = 0.15;
+    this.lfo(8, 0.05, 0.25, f.gain.gain);
+    // Low roar
+    const lo = this.noiseLoop("lowpass", 300, 1);
+    lo.gain.gain.value = 0.1;
+    this.lfo(0.3, 0.05, 0.15, lo.gain.gain);
+    // Pops
+    const pop = () => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.frequency.value = 800 + Math.random() * 2000;
+      osc.type = "sine";
+      const now = this.ctx.currentTime;
+      g.gain.setValueAtTime(0.1, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      osc.connect(g);
+      g.connect(this.master);
+      osc.start();
+      osc.stop(now + 0.06);
+    };
+    this.randomEvent(pop, 200, 1200);
+  }
+
+  dripping() {
+    const drip = () => {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      const freq = 1500 + Math.random() * 2000;
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      const now = this.ctx.currentTime;
+      g.gain.setValueAtTime(0.08, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + 0.3);
+      osc.connect(g);
+      g.connect(this.master);
+      osc.start();
+      osc.stop(now + 0.35);
+    };
+    this.randomEvent(drip, 1500, 5000);
+  }
+
+  drone(baseFreq = 55) {
+    // Deep ominous drone
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc1.frequency.value = baseFreq;
+    osc2.frequency.value = baseFreq * 1.005; // slight detune for beating
+    osc1.type = "sawtooth";
+    osc2.type = "sawtooth";
+    g.gain.value = 0.06;
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 200;
+    osc1.connect(lp);
+    osc2.connect(lp);
+    lp.connect(g);
+    g.connect(this.master);
+    osc1.start();
+    osc2.start();
+    this.lfo(0.05, 0.03, 0.08, g.gain);
+    this.nodes.push(osc1, osc2, lp, g);
+  }
+
+  heartbeat(bpm = 70) {
+    const interval = (60 / bpm) * 1000;
+    const beat = () => {
+      [0, 0.12].forEach(delay => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.frequency.value = delay === 0 ? 50 : 40;
+        osc.type = "sine";
+        const now = this.ctx.currentTime + delay;
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(delay === 0 ? 0.15 : 0.1, now + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.connect(g);
+        g.connect(this.master);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      });
+    };
+    this.randomEvent(beat, interval, interval);
+  }
+
+  crickets() {
+    const chirp = () => {
+      const f = 4000 + Math.random() * 3000;
+      const count = 2 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < count; i++) {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.frequency.value = f + Math.random() * 200;
+        osc.type = "sine";
+        const now = this.ctx.currentTime + i * 0.06;
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(0.015, now + 0.01);
+        g.gain.linearRampToValueAtTime(0, now + 0.04);
+        osc.connect(g);
+        g.connect(this.master);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      }
+    };
+    this.randomEvent(chirp, 800, 3000);
+  }
+
+  waves() {
+    const w = this.noiseLoop("lowpass", 500, 1.5);
+    w.gain.gain.value = 0.2;
+    this.lfo(0.07, 0.05, 0.35, w.gain.gain);
+    this.lfo(0.07, 200, 800, w.filt.frequency);
+    // Foam/hiss on high
+    const h = this.noiseLoop("highpass", 4000, 0.5);
+    h.gain.gain.value = 0.02;
+    this.lfo(0.07, 0.0, 0.06, h.gain.gain);
+  }
+
+  // ─── MOOD PRESETS ───
+  play(moodId) {
+    this.init();
+    if (this.ctx.state === "suspended") this.ctx.resume();
+    this.stop();
+    this.active = moodId;
+    const moods = {
+      storm:    () => { this.rain(); this.wind(); this.thunder(); },
+      rain:     () => { this.rain(); this.wind(); },
+      tavern:   () => { this.fire(); this.drone(110); },
+      forest:   () => { this.wind(); this.crickets(); },
+      dungeon:  () => { this.dripping(); this.drone(45); },
+      combat:   () => { this.drone(55); this.heartbeat(90); },
+      tension:  () => { this.drone(40); this.heartbeat(60); },
+      ocean:    () => { this.waves(); this.wind(); },
+      night:    () => { this.crickets(); this.wind(); },
+      campfire: () => { this.fire(); this.wind(); this.crickets(); },
+      cave:     () => { this.dripping(); this.drone(35); this.wind(); },
+      ritual:   () => { this.drone(50); this.drone(75); this.heartbeat(40); },
+    };
+    moods[moodId]?.();
+  }
+}
+
+const MOODS = [
+  { id: "storm",    name: "Tempesta",    icon: "⛈️",  desc: "Pioggia, vento e tuoni", color: "#5080b8" },
+  { id: "rain",     name: "Pioggia",     icon: "🌧️",  desc: "Pioggia costante e vento leggero", color: "#6090a0" },
+  { id: "tavern",   name: "Taverna",     icon: "🍺",  desc: "Fuoco crepitante e calore", color: "#c49a3c" },
+  { id: "forest",   name: "Foresta",     icon: "🌲",  desc: "Brezza e suoni della natura", color: "#5fa05f" },
+  { id: "campfire", name: "Bivacco",     icon: "🔥",  desc: "Fuoco sotto le stelle", color: "#e88a30" },
+  { id: "dungeon",  name: "Dungeon",     icon: "🏚️",  desc: "Gocce e oscurità opprimente", color: "#7a6a8c" },
+  { id: "cave",     name: "Caverna",     icon: "🦇",  desc: "Eco, acqua, vento sotterraneo", color: "#6a6a7a" },
+  { id: "combat",   name: "Combattimento", icon: "⚔️", desc: "Tensione e battito accelerato", color: "#c45050" },
+  { id: "tension",  name: "Tensione",    icon: "😰",  desc: "Suspense e inquietudine", color: "#9c3a3a" },
+  { id: "ocean",    name: "Oceano",      icon: "🌊",  desc: "Onde e vento marino", color: "#4080a0" },
+  { id: "night",    name: "Notte",       icon: "🌙",  desc: "Grilli e brezza notturna", color: "#3a4a6c" },
+  { id: "ritual",   name: "Rituale",     icon: "🕯️",  desc: "Droni profondi e pulsazioni oscure", color: "#6a3a6a" },
+];
+
+function Soundboard() {
+  const engineRef = useRef(null);
+  const [playing, setPlaying] = useState(null);
+  const [vol, setVol] = useState(50);
+
+  if (!engineRef.current) engineRef.current = new AmbientEngine();
+  const engine = engineRef.current;
+
+  const handlePlay = (moodId) => {
+    if (playing === moodId) {
+      engine.stop();
+      setPlaying(null);
+    } else {
+      engine.play(moodId);
+      setPlaying(moodId);
+    }
+  };
+
+  const handleVol = (v) => {
+    setVol(v);
+    engine.setVolume(v / 100);
+  };
+
+  const handleStop = () => {
+    engine.stop();
+    setPlaying(null);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => { engineRef.current?.stop(); }, []);
+
+  const activeMood = MOODS.find(m => m.id === playing);
+
+  return (
+    <div>
+      {/* Now playing bar */}
+      {activeMood && (
+        <Card className="fi" style={{ padding: "14px 18px", marginBottom: "16px", borderLeft: `3px solid ${activeMood.color}`, background: `${activeMood.color}08` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{
+                width: "40px", height: "40px", borderRadius: "12px",
+                background: `${activeMood.color}22`, border: `1px solid ${activeMood.color}44`,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px",
+              }}>
+                <span style={{ animation: "pulse 2s ease-in-out infinite" }}>{activeMood.icon}</span>
+              </div>
+              <div>
+                <div style={{ fontFamily: "'Cinzel',serif", fontWeight: 700, fontSize: "15px", color: activeMood.color }}>
+                  {activeMood.name}
+                </div>
+                <div style={{ fontSize: "12px", color: T.textDim }}>In riproduzione</div>
+              </div>
+            </div>
+            <button onClick={handleStop} style={{
+              ...bS, padding: "8px 16px", fontSize: "12px", color: T.redBright, borderColor: `${T.redBright}44`,
+            }}>■ Stop</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Volume */}
+      <Card style={{ padding: "14px 18px", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <span style={{ fontSize: "14px" }}>🔈</span>
+          <input
+            type="range" min="0" max="100" value={vol}
+            onChange={e => handleVol(parseInt(e.target.value))}
+            style={{
+              flex: 1, height: "6px", WebkitAppearance: "none", background: `linear-gradient(to right, ${T.gold} 0%, ${T.gold} ${vol}%, ${T.border} ${vol}%, ${T.border} 100%)`,
+              borderRadius: "3px", outline: "none", cursor: "pointer",
+            }}
+          />
+          <span style={{ fontSize: "14px" }}>🔊</span>
+          <span style={{ fontSize: "12px", color: T.textDim, minWidth: "32px", textAlign: "right", fontFamily: "'Cinzel',serif" }}>{vol}%</span>
+        </div>
+      </Card>
+
+      {/* Mood grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(48%,160px),1fr))", gap: "10px" }}>
+        {MOODS.map(mood => {
+          const isActive = playing === mood.id;
+          return (
+            <button
+              key={mood.id}
+              onClick={() => handlePlay(mood.id)}
+              className={isActive ? "" : "hov"}
+              style={{
+                background: isActive ? `${mood.color}15` : T.card,
+                border: `1px solid ${isActive ? mood.color : T.border}`,
+                borderRadius: "14px", padding: "16px 14px", cursor: "pointer",
+                textAlign: "left", position: "relative", overflow: "hidden",
+                touchAction: "manipulation", minHeight: "80px",
+                transition: "all .2s", outline: isActive ? `2px solid ${mood.color}44` : "none",
+              }}
+            >
+              {isActive && (
+                <div style={{
+                  position: "absolute", top: "8px", right: "10px",
+                  width: "8px", height: "8px", borderRadius: "50%", background: mood.color,
+                  boxShadow: `0 0 8px ${mood.color}`,
+                  animation: "pulse 1.5s ease-in-out infinite",
+                }} />
+              )}
+              <div style={{ fontSize: "28px", marginBottom: "6px" }}>{mood.icon}</div>
+              <div style={{ fontFamily: "'Cinzel',serif", fontWeight: 700, fontSize: "13px", color: isActive ? mood.color : T.text, marginBottom: "2px" }}>
+                {mood.name}
+              </div>
+              <div style={{ fontSize: "11px", color: T.textDim, lineHeight: 1.3 }}>{mood.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ textAlign: "center", marginTop: "16px", fontSize: "12px", color: T.textDim, fontStyle: "italic" }}>
+        Audio generato in tempo reale — collega il dispositivo alle casse per la sessione
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// DM TAB (with sub-navigation)
+// ═══════════════════════════════════════════════════════
+
+function DMTab({characters,settings,onUpdateSettings}) {
+  const [sub,setSub]=useState("screen");
+  const subs=[
+    {id:"screen",label:"DM Screen",icon:"👁️"},
+    {id:"monsters",label:"Mostri",icon:"💀"},
+    {id:"sound",label:"Atmosfera",icon:"🎵"},
+  ];
+  return (
+    <div>
+      <div style={{display:"flex",gap:"4px",marginBottom:"20px",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {subs.map(s=>(
+          <button key={s.id} onClick={()=>setSub(s.id)} style={{
+            display:"flex",alignItems:"center",gap:"6px",padding:"10px 16px",
+            background:sub===s.id?`${T.gold}15`:"transparent",
+            border:`1px solid ${sub===s.id?T.goldDim:T.border}`,borderRadius:"100px",
+            color:sub===s.id?T.gold:T.textDim,fontSize:"13px",fontFamily:"'Cinzel',serif",fontWeight:sub===s.id?700:500,
+            cursor:"pointer",whiteSpace:"nowrap",touchAction:"manipulation",minHeight:"42px",
+            transition:"all .15s",
+          }}>{s.icon} {s.label}</button>
+        ))}
+      </div>
+      {sub==="screen"&&<DMScreen characters={characters} settings={settings} onUpdateSettings={onUpdateSettings}/>}
+      {sub==="monsters"&&<QuickStatBlock settings={settings} onUpdateSettings={onUpdateSettings}/>}
+      {sub==="sound"&&<Soundboard/>}
     </div>
   );
 }
@@ -1061,6 +1841,7 @@ export default function App() {
     {id:"sheets",label:"Schede",icon:<I.Shield />},
     {id:"journal",label:"Diario",icon:<I.Book />},
     {id:"combat",label:"Combat",icon:<I.Swords />},
+    {id:"dm",label:"DM",icon:<I.DM />},
     {id:"tools",label:"Tools",icon:<I.Dice />},
   ];
 
@@ -1225,6 +2006,11 @@ export default function App() {
           <CombatTab characters={characters} onSaveChar={handleQuickSave}/>
         )}
 
+        {/* ═══ DM ═══ */}
+        {tab==="dm"&&(
+          <DMTab characters={characters} settings={settings} onUpdateSettings={async(data)=>{try{await updateSettings(data);}catch(e){flash("Errore","error");}}}/>
+        )}
+
         {/* ═══ TOOLS ═══ */}
         {tab==="tools"&&(
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,340px),1fr))",gap:"16px"}}>
@@ -1260,20 +2046,20 @@ export default function App() {
         background:T.glass,backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
         borderTop:`1px solid ${T.glassBorder}`,
         display:"flex",justifyContent:"space-around",alignItems:"center",
-        paddingTop:"6px",paddingBottom:"6px",
+        paddingTop:"5px",paddingBottom:"5px",
       }}>
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{
-            display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",
+            display:"flex",flexDirection:"column",alignItems:"center",gap:"1px",
             background:"none",border:"none",
             color:tab===t.id?T.gold:T.textMuted,
-            padding:"6px 8px",cursor:"pointer",
+            padding:"4px 2px",cursor:"pointer",flex:1,
             WebkitTapHighlightColor:"transparent",touchAction:"manipulation",
-            transition:"color .15s",minWidth:"52px",
+            transition:"color .15s",
           }}>
             {t.icon}
-            <span style={{fontSize:"10px",fontFamily:"'Cinzel',serif",fontWeight:tab===t.id?700:500,letterSpacing:".3px"}}>{t.label}</span>
-            {tab===t.id&&<div style={{width:"4px",height:"4px",borderRadius:"50%",background:T.gold,marginTop:"1px"}}/>}
+            <span style={{fontSize:"9px",fontFamily:"'Cinzel',serif",fontWeight:tab===t.id?700:500,letterSpacing:".2px"}}>{t.label}</span>
+            {tab===t.id&&<div style={{width:"4px",height:"4px",borderRadius:"50%",background:T.gold}}/>}
           </button>
         ))}
       </nav>
