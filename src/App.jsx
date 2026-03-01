@@ -4,7 +4,7 @@ import {
   saveCharacter as fbSaveCharacter, deleteCharacter as fbDeleteCharacter,
   saveSession as fbSaveSession, deleteSession as fbDeleteSession,
   updateSettings, uploadAvatar, uploadCharacterSheet, deleteFile,
-} from "./firebase";
+} from "./lib/firebase";
 
 import mapImg from "./map.jpg";
 
