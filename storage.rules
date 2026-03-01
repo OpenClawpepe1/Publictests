@@ -1,0 +1,16 @@
+// ═══════════════════════════════════════════
+// STORAGE RULES
+// Copia queste regole in Firebase Console → Storage → Rules
+// ═══════════════════════════════════════════
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /campaigns/{campaignId}/{allPaths=**} {
+      // Permetti upload fino a 10MB
+      allow read: if true;
+      allow write: if request.resource.size < 10 * 1024 * 1024;
+    }
+  }
+}

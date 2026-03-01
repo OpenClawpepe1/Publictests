@@ -1,0 +1,16 @@
+// ═══════════════════════════════════════════
+// FIRESTORE RULES
+// Copia queste regole in Firebase Console → Firestore → Rules
+// ═══════════════════════════════════════════
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permetti lettura/scrittura a tutti per la campagna
+    // (per un gruppo piccolo senza auth, questo è sufficiente)
+    match /campaigns/{campaignId}/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
