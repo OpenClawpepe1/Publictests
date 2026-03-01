@@ -4,7 +4,9 @@ import {
   saveCharacter as fbSaveCharacter, deleteCharacter as fbDeleteCharacter,
   saveSession as fbSaveSession, deleteSession as fbDeleteSession,
   updateSettings, uploadAvatar, uploadCharacterSheet, deleteFile,
-} from "./lib/firebase";
+} from "./firebase";
+
+import mapImg from "./map.jpg";
 
 // ═══════════════════════════════════════════════════════
 // THEME & CONSTANTS
@@ -21,21 +23,21 @@ const T = {
 };
 
 const LOCATIONS = [
-  { id: "neverwinter", name: "Neverwinter", type: "city", x: 12, y: 38, desc: "Città di partenza. Stabile ma piena di rifugiati e tensioni." },
-  { id: "thundertree", name: "Thundertree", type: "ruins", x: 28, y: 32, desc: "Rovine avvolte nella vegetazione. Presenze draconiche segnalate." },
-  { id: "mount_hotenow", name: "Mount Hotenow", type: "peak", x: 24, y: 22, desc: "Vulcano dormiente nelle Neverwinter Wood." },
-  { id: "cragmaw_castle", name: "Cragmaw Castle", type: "ruins", x: 40, y: 42, desc: "Fortezza dei goblin Cragmaw. Luogo di prigionia." },
-  { id: "cragmaw_hideout", name: "Cragmaw Hideout", type: "poi", x: 35, y: 55, desc: "Covo goblin lungo la strada per Phandalin." },
-  { id: "phandalin", name: "Phandalin", type: "town", x: 33, y: 68, desc: "Piccola cittadina mineraria. Base operativa dell'avventura." },
-  { id: "wave_echo", name: "Wave Echo Cave", type: "poi", x: 45, y: 65, desc: "Antica miniera dei nani. Fonte di potere magico." },
-  { id: "leilon", name: "Leilon", type: "ruins", x: 30, y: 80, desc: "Cittadina in rovina lungo la High Road." },
-  { id: "agatha_lair", name: "Agatha's Lair", type: "poi", x: 60, y: 32, desc: "Dimora dello spirito Agatha nella foresta." },
-  { id: "conyberry", name: "Conyberry", type: "ruins", x: 68, y: 32, desc: "Villaggio abbandonato lungo il Triboar Trail." },
-  { id: "old_owl_well", name: "Old Owl Well", type: "ruins", x: 72, y: 44, desc: "Antiche rovine. Attività necromantiche segnalate." },
-  { id: "wyvern_tor", name: "Wyvern Tor", type: "poi", x: 80, y: 52, desc: "Formazione rocciosa. Tana di orchi." },
-  { id: "icespire_peak", name: "Icespire Peak", type: "peak", x: 65, y: 58, desc: "Picco ghiacciato nelle Sword Mountains." },
-  { id: "the_crags", name: "The Crags", type: "region", x: 48, y: 10, desc: "Terreno accidentato a nord delle Neverwinter Wood." },
-  { id: "starmetal_hills", name: "Starmetal Hills", type: "region", x: 82, y: 15, desc: "Colline note per meteoriti e metalli rari." },
+  { id: "neverwinter", name: "Neverwinter", type: "city", x: 13, y: 38, desc: "Città di partenza. Stabile ma piena di rifugiati e tensioni." },
+  { id: "thundertree", name: "Thundertree", type: "ruins", x: 32, y: 30, desc: "Rovine avvolte nella vegetazione. Presenze draconiche segnalate." },
+  { id: "mount_hotenow", name: "Mount Hotenow", type: "peak", x: 25, y: 19, desc: "Vulcano dormiente nelle Neverwinter Wood." },
+  { id: "cragmaw_castle", name: "Cragmaw Castle", type: "ruins", x: 44, y: 41, desc: "Fortezza dei goblin Cragmaw. Luogo di prigionia." },
+  { id: "cragmaw_hideout", name: "Cragmaw Hideout", type: "poi", x: 37, y: 53, desc: "Covo goblin lungo la strada per Phandalin." },
+  { id: "phandalin", name: "Phandalin", type: "town", x: 35, y: 67, desc: "Piccola cittadina mineraria. Base operativa dell'avventura." },
+  { id: "wave_echo", name: "Wave Echo Cave", type: "poi", x: 50, y: 63, desc: "Antica miniera dei nani. Fonte di potere magico." },
+  { id: "leilon", name: "Leilon", type: "ruins", x: 32, y: 80, desc: "Cittadina in rovina lungo la High Road." },
+  { id: "agatha_lair", name: "Agatha's Lair", type: "poi", x: 63, y: 32, desc: "Dimora dello spirito Agatha nella foresta." },
+  { id: "conyberry", name: "Conyberry", type: "ruins", x: 74, y: 30, desc: "Villaggio abbandonato lungo il Triboar Trail." },
+  { id: "old_owl_well", name: "Old Owl Well", type: "ruins", x: 77, y: 43, desc: "Antiche rovine. Attività necromantiche segnalate." },
+  { id: "wyvern_tor", name: "Wyvern Tor", type: "poi", x: 85, y: 51, desc: "Formazione rocciosa. Tana di orchi." },
+  { id: "icespire_peak", name: "Icespire Peak", type: "peak", x: 68, y: 56, desc: "Picco ghiacciato nelle Sword Mountains." },
+  { id: "the_crags", name: "The Crags", type: "region", x: 48, y: 7, desc: "Terreno accidentato a nord delle Neverwinter Wood." },
+  { id: "starmetal_hills", name: "Starmetal Hills", type: "region", x: 86, y: 10, desc: "Colline note per meteoriti e metalli rari." },
 ];
 
 const CLASSES = ["Barbaro", "Bardo", "Chierico", "Druido", "Guerriero", "Ladro", "Mago", "Monaco", "Paladino", "Ranger", "Stregone", "Warlock"];
@@ -478,10 +480,11 @@ function MapMarker({ loc, isPartyHere, isSelected, onClick }) {
         </circle>
       )}
       {isSelected && <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s + 4} fill="none" stroke={T.gold} strokeWidth="1.5" strokeDasharray="3 3" />}
-      <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s} fill={c} opacity="0.9" stroke={T.bg} strokeWidth="2" />
+      <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s} fill={c} opacity="0.95" stroke="#fff" strokeWidth="2" />
+      <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s + 3} fill="none" stroke={c} strokeWidth="1" opacity="0.4" />
       {isPartyHere && <text x={`${loc.x}%`} y={`${loc.y + 0.4}%`} textAnchor="middle" dominantBaseline="central" fill={T.bg} fontSize="8" fontWeight="bold">⚑</text>}
-      <text x={`${loc.x}%`} y={`${loc.y - 3}%`} textAnchor="middle" fill={T.textBright} fontSize="9" fontFamily="'Cinzel',serif" fontWeight="600"
-        style={{ textShadow: `0 1px 3px ${T.bg},0 0 6px ${T.bg}` }}>{loc.name}</text>
+      <text x={`${loc.x}%`} y={`${loc.y - 3}%`} textAnchor="middle" fill="#fff" fontSize="9" fontFamily="'Cinzel',serif" fontWeight="700"
+        stroke={T.bg} strokeWidth="3" paintOrder="stroke">{loc.name}</text>
     </g>
   );
 }
@@ -861,31 +864,14 @@ export default function App() {
           <div className="g2" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "20px" }}>
             <div>
               <div style={{
-                position: "relative", width: "100%", aspectRatio: "0.77",
-                background: "linear-gradient(135deg,#2a3a2a,#1a2818 50%,#2a3020)",
+                position: "relative", width: "100%",
                 borderRadius: "12px", border: `2px solid ${T.border}`, overflow: "hidden",
-                boxShadow: "inset 0 0 60px rgba(0,0,0,.5)",
+                boxShadow: "0 4px 30px rgba(0,0,0,.5)",
               }}>
-                <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, opacity: .08 }}>
-                  <defs><pattern id="hex" width="30" height="26" patternUnits="userSpaceOnUse">
-                    <polygon points="15,0 30,7.5 30,22.5 15,30 0,22.5 0,7.5" fill="none" stroke="#888" strokeWidth="0.5" transform="translate(0,-2)" />
-                  </pattern></defs>
-                  <rect width="100%" height="100%" fill="url(#hex)" />
-                </svg>
+                <img src={mapImg} alt="Sword Coast Map" style={{ width: "100%", display: "block", borderRadius: "10px" }} />
                 <svg width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
-                  <ellipse cx="35%" cy="35%" rx="22%" ry="20%" fill="#1a3018" opacity="0.4" />
-                  <text x="35%" y="30%" textAnchor="middle" fill="#3a5a30" fontSize="14" fontFamily="'MedievalSharp',serif" fontWeight="700" opacity="0.5">Neverwinter Wood</text>
-                  <ellipse cx="25%" cy="90%" rx="20%" ry="8%" fill="#1a2a30" opacity="0.4" />
-                  <text x="28%" y="92%" textAnchor="middle" fill="#3a5a6a" fontSize="11" fontFamily="'MedievalSharp',serif" opacity="0.5">Mere of Dead Men</text>
-                  <ellipse cx="70%" cy="68%" rx="15%" ry="12%" fill="#2a2520" opacity="0.4" />
-                  <text x="72%" y="72%" textAnchor="middle" fill="#5a4a3a" fontSize="11" fontFamily="'MedievalSharp',serif" opacity="0.5">Sword Mountains</text>
-                  <path d="M 8% 25% Q 20% 50% 30% 70% Q 32% 78% 30% 90%" fill="none" stroke="#5a4a3a" strokeWidth="2" strokeDasharray="8 4" opacity="0.5" />
-                  <path d="M 33% 68% Q 50% 55% 70% 40%" fill="none" stroke="#6a5a4a" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.4" />
-                  <path d="M 0% 0% Q 5% 30% 8% 50% Q 10% 70% 12% 100%" fill="none" stroke="#3a5a7a" strokeWidth="2" opacity="0.4" />
                   {LOCATIONS.map(l => <MapMarker key={l.id} loc={l} isPartyHere={(settings.partyLocation || "neverwinter") === l.id} isSelected={selLoc?.id === l.id} onClick={setSelLoc} />)}
                 </svg>
-                <div style={{ position: "absolute", bottom: 12, right: 12, background: `${T.bg}cc`, borderRadius: "6px", padding: "6px 10px", fontSize: "10px", color: T.textDim, border: `1px solid ${T.border}` }}>1 hex = 5 miglia</div>
-                <div style={{ position: "absolute", top: 12, right: 12, background: `${T.bg}cc`, borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, fontFamily: "'Cinzel',serif", color: T.gold }}>N</div>
               </div>
             </div>
             <div>
