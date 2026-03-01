@@ -383,19 +383,43 @@ function MapMarker({loc,isPartyHere,isSelected,onClick}) {
   const tc={city:T.goldBright,town:T.gold,ruins:T.textDim,poi:T.blueBright,peak:"#bbb",region:T.goldDim};
   const c=tc[loc.type]||T.text;
   const s=loc.type==="city"?10:loc.type==="region"?6:8;
-  // Bigger touch target
+  const cx=`${loc.x}%`,cy=`${loc.y}%`;
   return (
     <g onClick={e=>{e.stopPropagation();onClick(loc);}} style={{cursor:"pointer"}}>
-      <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r="16" fill="transparent" />
-      {isPartyHere && <><circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s+8} fill="none" stroke={T.goldBright} strokeWidth="2" opacity="0.5">
-        <animate attributeName="r" values={`${s+6};${s+14};${s+6}`} dur="2.5s" repeatCount="indefinite"/>
-        <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.5s" repeatCount="indefinite"/>
-      </circle></>}
-      {isSelected && <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s+5} fill="none" stroke={T.gold} strokeWidth="1.5" strokeDasharray="3 3"/>}
-      <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s} fill={c} opacity="0.95" stroke="#fff" strokeWidth="2"/>
-      <circle cx={`${loc.x}%`} cy={`${loc.y}%`} r={s+3} fill="none" stroke={c} strokeWidth="1" opacity="0.4"/>
-      {isPartyHere && <text x={`${loc.x}%`} y={`${loc.y+0.4}%`} textAnchor="middle" dominantBaseline="central" fill={T.bg} fontSize="9" fontWeight="bold">⚑</text>}
-      <text x={`${loc.x}%`} y={`${loc.y-3.5}%`} textAnchor="middle" fill="#fff" fontSize="9" fontFamily="'Cinzel',serif" fontWeight="700" stroke={T.bg} strokeWidth="3" paintOrder="stroke">{loc.name}</text>
+      {/* Touch target */}
+      <circle cx={cx} cy={cy} r="20" fill="transparent" />
+
+      {/* Party beacon — multiple bright rings */}
+      {isPartyHere && <>
+        <circle cx={cx} cy={cy} r="28" fill="none" stroke="#ff4444" strokeWidth="2" opacity="0.6">
+          <animate attributeName="r" values="18;34;18" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx={cx} cy={cy} r="22" fill="none" stroke="#ffcc00" strokeWidth="2.5" opacity="0.5">
+          <animate attributeName="r" values="14;28;14" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx={cx} cy={cy} r="18" fill="#ff2200" opacity="0.12"/>
+        <circle cx={cx} cy={cy} r="15" fill="none" stroke="#ff4444" strokeWidth="2" opacity="0.7" strokeDasharray="4 3">
+          <animateTransform attributeName="transform" type="rotate" values={`0 ${loc.x} ${loc.y};360 ${loc.x} ${loc.y}`} dur="8s" repeatCount="indefinite"/>
+        </circle>
+      </>}
+
+      {/* Selected ring */}
+      {isSelected && <circle cx={cx} cy={cy} r={s+6} fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="4 3"/>}
+
+      {/* Main dot */}
+      {isPartyHere ? <>
+        <circle cx={cx} cy={cy} r="13" fill="#dd2200" stroke="#fff" strokeWidth="3"/>
+        <circle cx={cx} cy={cy} r="6" fill="#ffcc00" stroke="none"/>
+        <circle cx={cx} cy={cy} r="2.5" fill="#fff"/>
+      </> : <>
+        <circle cx={cx} cy={cy} r={s} fill={c} opacity="0.9" stroke="#fff" strokeWidth="1.5"/>
+      </>}
+
+      {/* Label */}
+      <text x={cx} y={`${loc.y-(isPartyHere?4.5:3)}%`} textAnchor="middle" fill={isPartyHere?"#fff":T.textBright} fontSize={isPartyHere?"11":"9"} fontFamily="'Cinzel',serif" fontWeight="700" stroke={T.bg} strokeWidth={isPartyHere?"4":"3"} paintOrder="stroke">{loc.name}</text>
+      {isPartyHere && <text x={cx} y={`${loc.y+5}%`} textAnchor="middle" fill="#ffcc00" fontSize="9" fontFamily="'Cinzel',serif" fontWeight="700" stroke={T.bg} strokeWidth="3" paintOrder="stroke">⚑ PARTY</text>}
     </g>
   );
 }
