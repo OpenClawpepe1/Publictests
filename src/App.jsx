@@ -707,10 +707,88 @@ VITE_FIREBASE_APP_ID=1:123:web:abc`}
 }
 
 // ═══════════════════════════════════════════════════════
+// PASSWORD GATE
+// ═══════════════════════════════════════════════════════
+
+const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || "";
+
+function PasswordGate({ onAuth }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+
+  // Check if already authenticated
+  useEffect(() => {
+    const saved = localStorage.getItem("dnd-auth");
+    if (saved === APP_PASSWORD) onAuth();
+  }, []);
+
+  const handleSubmit = () => {
+    if (pw === APP_PASSWORD) {
+      localStorage.setItem("dnd-auth", pw);
+      onAuth();
+    } else {
+      setError(true);
+      setTimeout(() => setError(false), 2000);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center",
+      justifyContent: "center", padding: "24px", fontFamily: "'Crimson Text',serif",
+    }}>
+      <style>{CSS}</style>
+      <div className="fi" style={{
+        maxWidth: "400px", width: "100%", background: T.surface,
+        border: `1px solid ${T.borderGold}`, borderRadius: "16px",
+        padding: "40px 32px", textAlign: "center",
+      }}>
+        <div style={{ fontSize: "48px", marginBottom: "12px" }}>⚡</div>
+        <h1 style={{ fontFamily: "'Cinzel',serif", color: T.gold, fontSize: "24px", marginBottom: "6px" }}>Time of Troubles</h1>
+        <p style={{ color: T.textDim, fontStyle: "italic", fontSize: "14px", marginBottom: "28px" }}>1358 DR — Costa della Spada</p>
+
+        <div style={{ marginBottom: "16px" }}>
+          <input
+            type="password"
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSubmit()}
+            placeholder="Password della campagna"
+            style={{
+              ...iS, textAlign: "center", fontSize: "16px",
+              padding: "12px 16px",
+              borderColor: error ? T.redBright : T.border,
+            }}
+          />
+        </div>
+
+        {error && (
+          <div className="fi" style={{ color: T.redBright, fontSize: "13px", marginBottom: "12px", fontWeight: 600 }}>
+            Password errata
+          </div>
+        )}
+
+        <button onClick={handleSubmit} style={{
+          ...bP, width: "100%", justifyContent: "center",
+          padding: "12px", fontSize: "16px",
+        }}>
+          Entra nella Campagna
+        </button>
+
+        <p style={{ color: T.textDim, fontSize: "11px", marginTop: "20px" }}>
+          Accesso riservato al party
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(!APP_PASSWORD);
   const [tab, setTab] = useState("map");
   const [characters, setCharacters] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -798,6 +876,9 @@ export default function App() {
       flash("Sessione eliminata");
     } catch (e) { flash("Errore: " + e.message, "error"); }
   };
+
+  // ─── Show password gate if not authenticated ───
+  if (!authenticated) return <PasswordGate onAuth={() => setAuthenticated(true)} />;
 
   // ─── Show setup guide if not configured ───
   if (!configured) return <SetupGuide />;
